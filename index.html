@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tier-N SCM Synthetic Data Simulator</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 { text-align: center; color: #2c3e50; }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            width: 30%;
+        }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input[type="range"], select { width: 100%; padding: 5px; }
+        .val-display { color: #e74c3c; font-weight: bold; }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .chart-container {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .chart-title {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #34495e;
+        }
+        svg { width: 100%; height: 250px; }
+        .bar rect { fill: #3498db; transition: fill 0.3s; }
+        .bar rect:hover { fill: #2980b9; }
+        .axis-label { font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Tier-N Risk Simulation Dashboard</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Avg State Risk (Macro Anchor): <span id="riskVal" class="val-display">0.6</span></label>
+            <input type="range" id="stateRisk" min="0.1" max="1.0" step="0.1" value="0.6">
+        </div>
+        <div class="control-group">
+            <label>Statistical Noise Level: <span id="noiseVal" class="val-display">0.05</span></label>
+            <input type="range" id="noiseLevel" min="0.0" max="0.3" step="0.01" value="0.05">
+        </div>
+        <div class="control-group">
+            <label>Supply Chain Depth:</label>
+            <select id="tierDepth">
+                <option value="balanced">Balanced (Mix of T1, T2, T3)</option>
+                <option value="tier1">Tier-1 Focused (Highly Visible)</option>
+                <option value="tier3" selected>Tier-3 Focused (Hidden/Informal)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="charts-grid">
+        <div class="chart-container">
+            <div class="chart-title">Informality Distribution</div>
+            <svg id="chart-informality"></svg>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">Labour Intensity Distribution</div>
+            <svg id="chart-labour"></svg>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">Cost Pressure Distribution</div>
+            <svg id="chart-cost"></svg>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">Total Child Labour Risk (Target)</div>
+            <svg id="chart-total"></svg>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Helper Function: Generate Normal (Gaussian) Distribution for 'Noise'
+    function randomNormal(mean, stdDev) {
+        let u = 1 - Math.random(); 
+        let v = Math.random();
+        let z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+        return z * stdDev + mean;
+    }
+
+    // 2. Main Simulation Logic (Generates 500 Suppliers based on inputs)
+    function generateData(stateRisk, noise, depthProfile) {
+        const data = [];
+        const n = 500;
+        
+        for (let i = 0; i < n; i++) {
+            // Determine Tier based on dropdown selection
+            let tierProb = Math.random();
+            let tier, tierPenalty, visibility;
+            
+            if (depthProfile === 'tier1') {
+                tier = tierProb < 0.7 ? 'T1' : (tierProb < 0.9 ? 'T2' : 'T3');
+            } else if (depthProfile === 'tier3') {
+                tier = tierProb < 0.1 ? 'T1' : (tierProb < 0.3 ? 'T2' : 'T3');
+            } else { // balanced
+                tier = tierProb < 0.33 ? 'T1' : (tierProb < 0.66 ? 'T2' : 'T3');
+            }
+
+            // Assign parameters based on Tier
+            if (tier === 'T1') { tierPenalty = 0.1; visibility = 0.9; }
+            else if (tier === 'T2') { tierPenalty = 0.3; visibility = 0.5; }
+            else { tierPenalty = 0.6; visibility = 0.1; } // T3
+
+            // Apply Causal Logic formulas with statistical noise
+            let informality = (stateRisk * 0.5) + (tierPenalty * 0.5) + randomNormal(0, noise);
+            let labourInt = (tier === 'T3' ? 0.8 : (tier === 'T2' ? 0.5 : 0.2)) + randomNormal(0, noise);
+            let costPress = (stateRisk * 0.4) + (tierPenalty * 0.6) + randomNormal(0, noise);
+
+            // Clip values between 0 and 1
+            informality = Math.max(0, Math.min(1, informality));
+            labourInt = Math.max(0, Math.min(1, labourInt));
+            costPress = Math.max(0, Math.min(1, costPress));
+
+            // Calculate Target: Weighted Base Risk * Visibility Penalty
+            let baseRisk = (informality * 0.45) + (labourInt * 0.30) + (costPress * 0.25);
+            let totalRisk = baseRisk * (1 + (1 - visibility));
+            totalRisk = Math.max(0, Math.min(1, totalRisk)); // Clip to max 1.0
+
+            data.push({ informality, labourInt, costPress, totalRisk });
+        }
+        return data;
+    }
+
+    // 3. D3.js Histogram Drawing Function
+    function drawHistogram(dataArray, svgId, color) {
+        const svg = d3.select(svgId);
+        svg.selectAll("*").remove(); // Clear previous chart
+
+        const width = svg.node().getBoundingClientRect().width;
+        const height = 250;
+        const margin = {top: 10, right: 10, bottom: 30, left: 40};
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+
+        const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // X scale (0 to 1 for all our features)
+        const x = d3.scaleLinear().domain([0, 1]).range([0, innerWidth]);
+
+        // Histogram Binning generator
+        const histogram = d3.bin().domain(x.domain()).thresholds(x.ticks(20));
+        const bins = histogram(dataArray);
+
+        // Y scale (Frequency)
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(bins, d => d.length)])
+            .range([innerHeight, 0]);
+
+        // Add X Axis
+        g.append("g")
+            .attr("transform", `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(x));
+
+        // Add Y Axis
+        g.append("g").call(d3.axisLeft(y).ticks(5));
+
+        // Draw Bars with animation
+        g.selectAll("rect")
+            .data(bins)
+            .enter().append("rect")
+            .attr("x", 1)
+            .attr("transform", d => `translate(${x(d.x0)},${y(d.length)})`)
+            .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+            .attr("height", d => innerHeight - y(d.length))
+            .style("fill", color);
+    }
+
+    // 4. Update Function (Triggered by UI controls)
+    function updateDashboard() {
+        // Get values from UI
+        const r = parseFloat(document.getElementById('stateRisk').value);
+        const n = parseFloat(document.getElementById('noiseLevel').value);
+        const depth = document.getElementById('tierDepth').value;
+
+        // Update UI text labels
+        document.getElementById('riskVal').innerText = r.toFixed(1);
+        document.getElementById('noiseVal').innerText = n.toFixed(2);
+
+        // Generate Data
+        const simulatedData = generateData(r, n, depth);
+
+        // Draw the 4 Charts
+        drawHistogram(simulatedData.map(d => d.informality), "#chart-informality", "#3498db");
+        drawHistogram(simulatedData.map(d => d.labourInt), "#chart-labour", "#e67e22");
+        drawHistogram(simulatedData.map(d => d.costPress), "#chart-cost", "#9b59b6");
+        drawHistogram(simulatedData.map(d => d.totalRisk), "#chart-total", "#e74c3c");
+    }
+
+    // 5. Event Listeners for Sliders/Dropdowns
+    document.getElementById('stateRisk').addEventListener('input', updateDashboard);
+    document.getElementById('noiseLevel').addEventListener('input', updateDashboard);
+    document.getElementById('tierDepth').addEventListener('change', updateDashboard);
+
+    // Initial render on page load
+    updateDashboard();
+    
+    // Make responsive on window resize
+    window.addEventListener('resize', updateDashboard);
+</script>
+
+</body>
+</html>

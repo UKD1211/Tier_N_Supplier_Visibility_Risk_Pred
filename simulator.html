@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Chain Risk Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #1a237e;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            color: #5c6bc0;
+            font-size: 1.2em;
+            margin-top: 5px;
+        }
+        .dashboard {
+            display: flex;
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 20px;
+        }
+        .controls-panel {
+            flex: 1;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+        }
+        .visual-panel {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .control-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-size: 1.1em;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.1em;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        .value-badge {
+            float: right;
+            background: #e8eaf6;
+            color: #3f51b5;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+        .risk-number {
+            font-size: 4em;
+            font-weight: bold;
+            margin: 10px 0;
+            transition: color 0.3s ease;
+        }
+        .math-breakdown {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 1.1em;
+            color: #555;
+        }
+        .bar-container {
+            width: 100%;
+            height: 40px;
+            background: #e0e0e0;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            margin-top: 20px;
+        }
+        .bar-base {
+            height: 100%;
+            background: #3f51b5;
+            transition: width 0.4s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .bar-penalty {
+            height: 100%;
+            background: #ff5252;
+            transition: width 0.4s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Tier-N SCM Risk Predictor</h1>
+        <p>Interactive Machine Learning Model Demonstration</p>
+    </div>
+
+    <div class="dashboard">
+        <div class="controls-panel">
+            <h2>Factory Features</h2>
+            
+            <div class="control-group">
+                <label>Supply Chain Level</label>
+                <select id="tierSelect">
+                    <option value="0.9">Tier 1 - Raw Cotton (Highly Visible)</option>
+                    <option value="0.5">Tier 2 - Spinning Mill (Semi-Visible)</option>
+                    <option value="0.3">Tier 3 - Fabric Dyeing (Hidden)</option>
+                    <option value="0.1" selected>Tier 4 - Garment Stitching (Black Box)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Informality (Unregistered/Hidden) <span class="value-badge" id="valInfo">65%</span></label>
+                <input type="range" id="slideInfo" min="0" max="100" value="65">
+            </div>
+
+            <div class="control-group">
+                <label>Labour Intensity (Human Hands) <span class="value-badge" id="valLab">95%</span></label>
+                <input type="range" id="slideLab" min="0" max="100" value="95">
+            </div>
+
+            <div class="control-group">
+                <label>Cost Pressure (Margin Squeeze) <span class="value-badge" id="valCost">90%</span></label>
+                <input type="range" id="slideCost" min="0" max="100" value="90">
+            </div>
+        </div>
+
+        <div class="visual-panel">
+            <div class="card">
+                <h2>Total Child Labour Risk</h2>
+                <div class="risk-number" id="riskNumber">0.0%</div>
+                <div id="riskStatus" style="font-size: 1.5em; font-weight: bold;">STATUS</div>
+                
+                <div class="bar-container">
+                    <div class="bar-base" id="barBase" style="width: 0%;">Base</div>
+                    <div class="bar-penalty" id="barPenalty" style="width: 0%;">Penalty</div>
+                </div>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <span style="color:#3f51b5; font-weight:bold;">■ Base Risk</span> | 
+                    <span style="color:#ff5252; font-weight:bold;">■ Invisibility Penalty</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Mathematical Breakdown</h2>
+                <div class="math-breakdown">
+                    <p><b>1. Base Ingredients:</b><br>
+                        (Informality * 0.45) + (Labour * 0.30) + (Cost * 0.25) = <span id="mathBase" style="color:#3f51b5; font-weight:bold;">0.00</span>
+                    </p>
+                    <p><b>2. Visibility Penalty:</b><br>
+                        1.0 + (1.0 - <span id="mathVis">0.0</span>) = <span id="mathPen" style="color:#ff5252; font-weight:bold;">0.00x Multiplier</span>
+                    </p>
+                    <p><b>3. Final Output:</b><br>
+                        Base Risk * Penalty Multiplier = <span id="mathFinal" style="color:black; font-weight:bold; font-size:1.2em;">0.00</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function calculateRisk() {
+            // Get values
+            let info = document.getElementById('slideInfo').value / 100;
+            let lab = document.getElementById('slideLab').value / 100;
+            let cost = document.getElementById('slideCost').value / 100;
+            let vis = parseFloat(document.getElementById('tierSelect').value);
+
+            // Update Labels
+            document.getElementById('valInfo').innerText = (info * 100).toFixed(0) + '%';
+            document.getElementById('valLab').innerText = (lab * 100).toFixed(0) + '%';
+            document.getElementById('valCost').innerText = (cost * 100).toFixed(0) + '%';
+
+            // Math
+            let baseRisk = (info * 0.45) + (lab * 0.30) + (cost * 0.25);
+            let penalty = 1 + (1 - vis);
+            let finalRisk = baseRisk * penalty;
+            
+            let displayRisk = Math.min(finalRisk, 1.0); // Cap at 100%
+
+            // Update Text Math
+            document.getElementById('mathBase').innerText = baseRisk.toFixed(2);
+            document.getElementById('mathVis').innerText = vis.toFixed(2);
+            document.getElementById('mathPen').innerText = penalty.toFixed(2) + 'x';
+            document.getElementById('mathFinal').innerText = finalRisk.toFixed(2);
+
+            // Update Big Number and Color
+            let numObj = document.getElementById('riskNumber');
+            let statusObj = document.getElementById('riskStatus');
+            numObj.innerText = (displayRisk * 100).toFixed(1) + '%';
+
+            let color = "#4caf50"; // Green
+            let statusText = "SAFE (LOW RISK)";
+            if(displayRisk >= 0.75) {
+                color = "#f44336"; // Red
+                statusText = "CRITICAL (IMMEDIATE AUDIT)";
+            } else if(displayRisk >= 0.40) {
+                color = "#ff9800"; // Orange
+                statusText = "WARNING (MONITOR)";
+            }
+
+            numObj.style.color = color;
+            statusObj.style.color = color;
+            statusObj.innerText = statusText;
+
+            // Update Stacked Bar Chart
+            let baseWidth = (baseRisk / 1.0) * 100; // Relative to max possible 1.0
+            let penWidth = ((finalRisk - baseRisk) / 1.0) * 100;
+            
+            // Adjust if total goes over 100%
+            if(baseWidth + penWidth > 100) {
+                let overage = (baseWidth + penWidth) - 100;
+                penWidth = penWidth - overage; 
+            }
+
+            document.getElementById('barBase').style.width = baseWidth + '%';
+            document.getElementById('barPenalty').style.width = penWidth + '%';
+        }
+
+        // Add Listeners
+        document.getElementById('slideInfo').addEventListener('input', calculateRisk);
+        document.getElementById('slideLab').addEventListener('input', calculateRisk);
+        document.getElementById('slideCost').addEventListener('input', calculateRisk);
+        document.getElementById('tierSelect').addEventListener('change', calculateRisk);
+
+        // Run once on load
+        calculateRisk();
+    </script>
+</body>
+</html>
