@@ -228,6 +228,61 @@
     </div>
 
     <script>
+      const tierConstraints = {
+        0.9: { infoMin: 10, infoMax: 40, labMin: 10, labMax: 60, costMin: 10, costMax: 60 }, // Tier 1
+        0.5: { infoMin: 35, infoMax: 70, labMin: 40, labMax: 80,  costMin: 40, costMax: 85  }, // Tier 2
+        0.3: { infoMin: 60, infoMax: 90, labMin: 60, labMax: 90,  costMin: 60, costMax: 90  }, // Tier 3
+        0.1: { infoMin: 60, infoMax: 100, labMin: 80, labMax: 100,  costMin: 75, costMax: 100  }, // Tier 4
+      };
+
+      function applyTierConstraints() {
+        let vis = parseFloat(document.getElementById("tierSelect").value);
+        let rules = tierConstraints[vis];
+
+        let infoSlider = document.getElementById("slideInfo");
+        let labSlider = document.getElementById("slideLab");
+        let costSlider = document.getElementById("slideCost");
+
+         // 2. Set Min AND Max limits dynamically
+            const sliders = [
+                { el: infoSlider, min: rules.infoMin, max: rules.infoMax },
+                { el: labSlider,  min: rules.labMin,  max: rules.labMax  },
+                { el: costSlider, min: rules.costMin, max: rules.costMax }
+            ];
+
+            sliders.forEach(s => {
+                s.el.min = s.min;
+                s.el.max = s.max;
+                
+                // 3. Ensure the current value stays within the new bounds
+                if (parseInt(s.el.value) > s.max) {
+                    s.el.value = s.max;
+                }
+                if (parseInt(s.el.value) < s.min) {
+                    s.el.value = s.min;
+                }
+
+                // 4. Trigger the UI update (so labels/badges refresh)
+                s.el.dispatchEvent(new Event('input'));
+            });
+
+        // 5. Ensure the event listener is attached (usually at the bottom of the script)
+        document.getElementById("tierSelect").addEventListener("change", function(){
+            applyTierConstraints();
+            calculateRisk();
+        });
+        // Force current value if below min
+        // if (infoSlider.value < rules.infoMin) infoSlider.value = rules.infoMin;
+        // if (labSlider.value < rules.labMin) labSlider.value = rules.labMin;
+        // if (costSlider.value < rules.costMin) costSlider.value = rules.costMin;
+      }
+
+    //   document
+    //     .getElementById("tierSelect")
+    //     .addEventListener("change", function () {
+    //       applyTierConstraints();
+    //       calculateRisk();
+    //     });
       function calculateRisk() {
         // Get values
         let info = document.getElementById("slideInfo").value / 100;
@@ -307,7 +362,16 @@
         .addEventListener("change", calculateRisk);
 
       // Run once on load
+      applyTierConstraints();
       calculateRisk();
     </script>
   </body>
 </html>
+
+
+
+
+<!-- tier-1 , info -> 10% - 40%
+tier - 2 , infor 30% - 70%
+tier - 3 infor 45% - 90%
+tier - 4 infor 60% - 100%  -->
